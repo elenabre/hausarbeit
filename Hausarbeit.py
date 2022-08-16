@@ -13,13 +13,14 @@ from sqlalchemy.ext.declarative import declarative_base
 import csv
 from csv import reader
 import math
+import unittest 
 
 #%% We have train and ideal data. To find the four best fits with least square 
 # from ideal and train we first need to read the data and store it in a database.
-def Load_Data(file_train):
-    '''Load data from train.csv file and create dataframe'''
-    data_train = csv.reader(file_train, delimiter=',')
-    return data_train.tolist()
+data_train = pd.read_csv('train.csv')
+
+'''Load data from train.csv file'''
+
 # create class train for dataframe train, set x as primary key
 Base = declarative_base()
 
@@ -39,6 +40,12 @@ class train(read_data):
     pass
     x = Column(Integer, primary_key=True, nullable=True)
     '''x: primary key for the database'''
+# exception if data_train has not five columns
+if len(data_train.columns) != 5:
+    raise Exception('data_train has not five columns')
+
+
+
 
 # load data from train.csv into sql database 'train.db' trough sqlalchemy engine
 engine_train = create_engine('sqlite:///train.db')
@@ -47,11 +54,17 @@ file_train = 'train.csv'
 data_train = pd.read_csv(file_train)
 data_train.to_sql(con=engine_train, name='train', if_exists='replace', index=False)
 '''replace the database if it already exists, no index is needed'''
+# Exception if train.csv file is not found
+class FileNotFoundError(Exception):
+    pass
+try:
+    file_ideal = open('ideal.csv', 'r')
+except FileNotFoundError:
+    print('File not found')
+    exit()
 
-# load data from ideal.csv file and create dataframe
-def Load_Data(file_ideal):
-    data_ideal = csv.reader(file_ideal, delimiter=',')
-    return data_ideal.tolist()
+#load data from ideal.csv file and create dataframe
+data_ideal = pd.read_csv('ideal.csv')
 
 # create class ideal for dataframe ideal, set x as primary key
 class ideal(read_data):
@@ -65,13 +78,21 @@ file_ideal = 'ideal.csv'
 data_ideal = pd.read_csv(file_ideal)
 data_ideal.to_sql(con=engine_ideal, name='ideal', if_exists='replace', index=False)
 
+# Exception if ideal.csv file is not found
+class FileNotFoundError(Exception):
+    pass
+try:
+    file_ideal = open('ideal.csv', 'r')
+except FileNotFoundError:
+    print('File not found')
+    exit()
 
 #%% create list of train y-columns
 train_list = data_train.columns.tolist()
 train_list.pop(0)
 '''skip column x to only see results for y-columns'''
 
-#%% create an empty dictionary to store the four ideal functions with the least square sum of the y-deviation with the train data.
+# create an empty dictionary to store the four ideal functions with the least square sum of the y-deviation with the train data.
 dict_four_ideal = {'train_datasets': train_list, 'ideal_results': [], 'sqrt_y_dev': [], 'max_dev': [], 'max_dev_sqrt': []}
 
 # create a for loop to find the four ideal functions with the least square sum of the y-deviation
@@ -143,7 +164,7 @@ ideal_4 = df_four_ideal_data.iloc[:,3]
 '''y column of fourth ideal function'''
 train_y4 = data_train.y4
 
-#%%create four plots for the ideal functions
+# create four plots for the ideal functions
 fig, axs = plt.subplots(2, 2, figsize=(10,10))
 '''use subplots to create four plots'''
 axs[0, 0].plot(x_ideal, ideal_1, 'r', label='Ideal Function')
@@ -173,6 +194,19 @@ plt.show()
 # The ideal function with the least deviation is the ideal function for the point. 
 # Every test point that has a higher deviation than the deviation of the ideal function with the train function by the factor of the square root of 2 gets dropped.
 data_test = pd.read_csv('test.csv')
+# Exception handling if test.csv is not found
+try:
+    data_test
+except NameError:
+    print('test.csv not found')
+
+# Exception handling if test.csv has not two columns
+try:
+    data_test.shape[1] == 2
+except NameError:
+    print('test.csv has not two columns')
+
+
 #Create dataframe with all ideal functions to compare it to test.csv
 all_ideal_functions = pd.DataFrame().assign(x=x_ideal, y1=ideal_1, y2=ideal_2, y3=ideal_3, y4=ideal_4)
 # create arrays for test data
@@ -186,6 +220,7 @@ def find_nearest(array, value):
     idx = (np.abs(array - value)).argmin()
     '''we look for the lowest difference between the array and the value - needs to be absolute value'''
     return array[idx]
+
 # find same or nearest x and y value for test and ideal values through for loop and store in a list
 nearest_x_list = []
 nearest_x_y_list = []
@@ -251,6 +286,12 @@ for i in dev_df.index:
         if dev_df.dev_y_4[i] <= df_four_ideal.max_dev[3]*math.sqrt(2):
             test_result = test_result.append(dev_df.loc[i])
 
+# Exception handling for if there is no data where the deviation is lower than the ideal deviation by the factor of sqrt(2)
+try:
+    test_result
+except NameError:
+    print('No data where the deviation is lower than the ideal deviation by the factor of sqrt(2)')
+
 #%% create dataframe with x, y, min_dev and min_dev_name values of test_result, where for each min_dev_name value the y of ideal is shown
 test_result_table = pd.DataFrame().assign(x=test_result.x, y=test_result.y, min_dev=test_result.min_dev, min_dev_name=test_result.min_dev_name,)
 '''use the min_dev and min_dev_name values of test_result to find the y value of the ideal function that has the lowest deviation and drop the other columns'''
@@ -261,6 +302,13 @@ test_result_table = test_result_table.assign(ideal_y=test_result_table.min_dev_n
 test_result_table.drop(columns=['min_dev_name'], inplace=True)
 '''drop the min_dev_name column'''      
 print(test_result_table)
+
+# Exception handling if no ideal y value is found
+try:
+    test_result_table
+except NameError:
+    print('No ideal y value is found')
+
 
 #%% store the test_result_table in database through sqlalchemy
 engine = create_engine('sqlite:///test.db')    
@@ -303,6 +351,7 @@ axs[1, 1].set_title('ideal_y = ' + str(df_four_ideal.ideal_results[3]))
 axs[1, 1].legend(handles=legend_elements, loc='lower right')
 
 plt.show()
+
 
 
 # %%
